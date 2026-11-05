@@ -1,0 +1,28 @@
+{
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "gitleaks",
+          "rules": [{ "id": "generic-api-key", "name": "Generic API Key", "shortDescription": { "text": "Detected a Generic API Key" } }]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "generic-api-key",
+          "level": "error",
+          "message": { "text": "generic-api-key has detected secret for file config/example.env." },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "config/example.env" },
+                "region": { "startLine": 2, "endLine": 2, "snippet": { "text": "API_KEY=REDACTED" } }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

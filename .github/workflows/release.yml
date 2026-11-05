@@ -1,0 +1,79 @@
+name: release
+
+# Maintainer helper. It never publishes a release for you.
+#   mode=draft-release   : checks VERSION and CHANGELOG, then creates a DRAFT GitHub release for v<version>.
+#                          You review it and press Publish (that creates the tag and, with immutable
+#                          releases on, locks it).
+#   mode=move-major-tag  : after you have published v<version>, moves the floating v<major> tag to it.
+#                          v<major> must be a plain git tag with no GitHub release attached; with immutable
+#                          releases on, a tag that belongs to a release can never be moved.
+# See "Maintainers" in the README.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version without the v, for example 1.0.0
+        required: true
+      mode:
+        description: What to do
+        type: choice
+        options: [draft-release, move-major-tag]
+        default: draft-release
+
+permissions:
+  contents: read
+
+jobs:
+  draft-release:
+    if: inputs.mode == 'draft-release'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check version and changelog
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "version must look like 1.2.3"; exit 1; }
+          [ "$(tr -d '[:space:]' <VERSION)" = "$VERSION" ] || { echo "VERSION file does not say $VERSION"; exit 1; }
+          grep -q "^## \[$VERSION\]" CHANGELOG.md || { echo "CHANGELOG.md has no section for $VERSION"; exit 1; }
+          awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md >"$RUNNER_TEMP/notes.md"
+      - name: Create the draft release (not published)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          gh release create "v$VERSION" --draft --target "$GITHUB_SHA" \
+            --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+          echo "Draft release v$VERSION created for $GITHUB_SHA. Review it, then publish it in the GitHub UI."
+
+  move-major-tag:
+    if: inputs.mode == 'move-major-tag'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Move the floating major tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "version must look like 1.2.3"; exit 1; }
+          major="v${VERSION%%.*}"
+          draft=$(gh release view "v$VERSION" --json isDraft --jq .isDraft) || { echo "release v$VERSION not found"; exit 1; }
+          [ "$draft" = false ] || { echo "release v$VERSION is still a draft; publish it first"; exit 1; }
+          if gh release view "$major" >/dev/null 2>&1; then
+            echo "$major has a GitHub release; with immutable releases its tag cannot move. Delete that release or stop using it."
+            exit 1
+          fi
+          git tag -f "$major" "v$VERSION^{}"
+          git push --force origin "refs/tags/$major"
+          echo "$major now points at v$VERSION ($(git rev-parse --short "v$VERSION^{}"))."

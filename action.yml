@@ -1,0 +1,89 @@
+name: Lantern upload
+description: >-
+  Push the scanner reports your CI already produces (SARIF, axe-core, SonarQube) to Lantern.
+  Never fails your build unless you ask it to.
+author: John Cleary
+branding:
+  icon: upload-cloud
+  color: yellow
+
+inputs:
+  api-key:
+    description: >-
+      Lantern API key (ltn_...), from a repository secret. If empty (for example on a fork pull
+      request) the action skips quietly with status=skipped.
+    required: false
+    default: ''
+  lantern-url:
+    description: Base URL of your Lantern instance. Must be https://.
+    required: false
+    default: https://lantern.foundryhq.co.uk
+  sarif:
+    description: >-
+      Multi-line list, one "source-key=path/to/file.sarif" per line. Paths are exact (no globs).
+    required: false
+    default: ''
+  a11y:
+    description: Same "source-key=path" format, uploaded as format=a11y (axe-core).
+    required: false
+    default: ''
+  sonarqube:
+    description: Same "source-key=path" format, uploaded as format=sonarqube (issue-search response).
+    required: false
+    default: ''
+  upload-on:
+    description: >-
+      default-branch (upload only on non-PR runs of the repository's default branch), always
+      (upload on any run) or never (dry run: validate and summarise, no HTTP calls).
+    required: false
+    default: default-branch
+  scanned-at:
+    description: >-
+      ISO-8601 UTC timestamp ending in Z (2026-07-07T16:24:55Z) for when the scan finished.
+      If empty, the current UTC time is computed once when the step starts.
+    required: false
+    default: ''
+  max-payload-mb:
+    description: A file larger than this many MB is skipped with a warning, not uploaded.
+    required: false
+    default: '10'
+  strip-snippets:
+    description: >-
+      For SARIF only, remove region.snippet, contextRegion and codeFlows before upload so source
+      code does not leave your CI.
+    required: false
+    default: 'true'
+  fail-on-error:
+    description: If true, the step exits non-zero when any upload fails. Otherwise it always exits 0.
+    required: false
+    default: 'false'
+
+outputs:
+  status:
+    description: One of uploaded, partial, failed, skipped or dry-run.
+    value: ${{ steps.upload.outputs.status }}
+  results:
+    description: >-
+      Compact JSON array, one object per source:
+      { source, format, file, http, outcome, runId?, opened?, closed?, reopened?, open?, error? }.
+    value: ${{ steps.upload.outputs.results }}
+
+runs:
+  using: composite
+  steps:
+    - id: upload
+      shell: bash
+      # Inputs travel as environment variables, never interpolated into the script text.
+      env:
+        INPUT_API_KEY: ${{ inputs.api-key }}
+        INPUT_LANTERN_URL: ${{ inputs.lantern-url }}
+        INPUT_SARIF: ${{ inputs.sarif }}
+        INPUT_A11Y: ${{ inputs.a11y }}
+        INPUT_SONARQUBE: ${{ inputs.sonarqube }}
+        INPUT_UPLOAD_ON: ${{ inputs.upload-on }}
+        INPUT_SCANNED_AT: ${{ inputs.scanned-at }}
+        INPUT_MAX_PAYLOAD_MB: ${{ inputs.max-payload-mb }}
+        INPUT_STRIP_SNIPPETS: ${{ inputs.strip-snippets }}
+        INPUT_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        LANTERN_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      run: bash "${{ github.action_path }}/scripts/main.sh"

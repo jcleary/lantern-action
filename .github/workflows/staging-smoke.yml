@@ -1,0 +1,60 @@
+name: staging-smoke
+
+# Manual only. Uploads a small fixture to lantern-staging and checks the idempotency contract:
+# the first push is `created`, an identical second push (same scanned-at) is `duplicate`.
+# Needs the repository secret LANTERN_STAGING_API_KEY (a key for a throwaway staging project).
+# Afterwards, look for source "action-smoke" under Admin -> project -> Recent runs on staging.
+
+on:
+  workflow_dispatch:
+    inputs:
+      lantern-url:
+        description: Staging base URL
+        default: https://lantern-staging.foundryhq.co.uk
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fix one scan time for both pushes
+        id: when
+        run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$GITHUB_OUTPUT"
+
+      - name: First push (expect created)
+        id: first
+        uses: ./
+        with:
+          api-key: ${{ secrets.LANTERN_STAGING_API_KEY }}
+          lantern-url: ${{ inputs.lantern-url }}
+          upload-on: always
+          fail-on-error: true
+          scanned-at: ${{ steps.when.outputs.at }}
+          sarif: action-smoke=test/fixtures/osv.sarif
+
+      - name: Second push, same scanned-at (expect duplicate)
+        id: second
+        uses: ./
+        with:
+          api-key: ${{ secrets.LANTERN_STAGING_API_KEY }}
+          lantern-url: ${{ inputs.lantern-url }}
+          upload-on: always
+          fail-on-error: true
+          scanned-at: ${{ steps.when.outputs.at }}
+          sarif: action-smoke=test/fixtures/osv.sarif
+
+      - name: Check outcomes
+        env:
+          FIRST: ${{ steps.first.outputs.results }}
+          SECOND: ${{ steps.second.outputs.results }}
+        run: |
+          first=$(jq -r '.[0].outcome' <<<"$FIRST")
+          second=$(jq -r '.[0].outcome' <<<"$SECOND")
+          echo "first=$first second=$second"
+          [ "$first" = created ] && [ "$second" = duplicate ]

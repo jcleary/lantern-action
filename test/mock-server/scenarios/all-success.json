@@ -1,0 +1,1 @@
+{"routes":{},"default":{"status":201,"body":{"runId":"run-1","source":"x","scannedAt":"2026-01-01T00:00:00Z","issues":3,"opened":2,"closed":1,"reopened":0,"open":{"critical":0,"high":1,"medium":1,"low":0}}}}

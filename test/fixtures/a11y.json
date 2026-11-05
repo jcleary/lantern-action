@@ -1,0 +1,16 @@
+[
+  {
+    "route": "/",
+    "role": "anonymous",
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "help": "Elements must meet minimum colour contrast ratio thresholds",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.9/color-contrast",
+        "description": "Ensures the contrast between foreground and background colours meets WCAG 2 AA",
+        "nodes": [{ "target": [".hero > p"], "failureSummary": "Fix any of the following: contrast ratio of 3.2:1" }]
+      }
+    ]
+  }
+]

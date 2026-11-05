@@ -1,0 +1,5 @@
+# Sourced files are resolved relative to the script that sources them.
+source-path=SCRIPTDIR
+external-sources=true
+# Markdown backticks inside single-quoted printf formats are intentional.
+disable=SC2016

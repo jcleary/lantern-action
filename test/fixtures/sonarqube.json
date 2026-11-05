@@ -1,0 +1,15 @@
+{
+  "projectKey": "example",
+  "issues": [
+    {
+      "key": "AYabc123example0001",
+      "rule": "javascript:S1481",
+      "severity": "MINOR",
+      "component": "example:src/index.js",
+      "line": 7,
+      "status": "OPEN",
+      "message": "Remove the declaration of the unused 'x' variable.",
+      "type": "CODE_SMELL"
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "osv-scanner",
+          "rules": [
+            {
+              "id": "GHSA-0000-aaaa-0001",
+              "name": "example-package",
+              "shortDescription": { "text": "Example vulnerability in example-package" },
+              "properties": { "security-severity": "7.5" }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "GHSA-0000-aaaa-0001",
+          "level": "error",
+          "message": { "text": "Package 'example-package@1.0.0' is vulnerable to GHSA-0000-aaaa-0001." },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "package-lock.json" },
+                "region": {
+                  "startLine": 12,
+                  "snippet": { "text": "\"example-package\": \"1.0.0\"" }
+                },
+                "contextRegion": {
+                  "startLine": 11,
+                  "endLine": 13,
+                  "snippet": { "text": "  \"dependencies\": {\n    \"example-package\": \"1.0.0\"\n  }" }
+                }
+              }
+            }
+          ],
+          "relatedLocations": [
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": { "uri": "package.json" },
+                "region": { "startLine": 5, "snippet": { "text": "\"example-package\": \"^1.0.0\"" } }
+              }
+            }
+          ],
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
+                    {
+                      "location": {
+                        "physicalLocation": {
+                          "artifactLocation": { "uri": "src/index.js" },
+                          "region": { "startLine": 3, "snippet": { "text": "require('example-package')" } }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

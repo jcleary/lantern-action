@@ -1,0 +1,259 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # A fake key for the mock server. Not a secret.
+  LANTERN_TEST_KEY: ltn_cifake_0000000000000000000000000000000000000000000
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: shellcheck
+        run: shellcheck scripts/main.sh scripts/lib/*.sh test/mock-server/start.sh
+      - name: actionlint
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$(go env GOPATH)/bin/actionlint"
+      - name: action.yml is composite, with no nested uses, Node or Docker
+        run: |
+          if grep -Eq '^[[:space:]]*-?[[:space:]]*uses:' action.yml; then echo "nested uses: found"; exit 1; fi
+          if grep -Eq 'using:[[:space:]]*(node|docker)' action.yml; then echo "not a composite action"; exit 1; fi
+          grep -Eq 'using:[[:space:]]*composite' action.yml
+      - name: No set -x anywhere (the key is in the environment)
+        run: |
+          if grep -rnE '(^|[[:space:];])set[[:space:]]+-[a-z]*x' scripts; then exit 1; fi
+
+  unit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install bats
+        run: sudo apt-get update && sudo apt-get install -y bats
+      - name: bats (unit tests, and main.sh against the mock server)
+        run: bats --print-output-on-failure test/bats
+
+  # The action itself (uses: ./) against HTTPS mock servers, one per scripted scenario.
+  integration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Start mock servers
+        run: |
+          root="$RUNNER_TEMP/mock"
+          first=""
+          for name in all-success partial stale retry; do
+            url=$(MOCK_CERT_FROM="$first" test/mock-server/start.sh "test/mock-server/scenarios/$name.json" "$root/$name" "$LANTERN_TEST_KEY")
+            echo "MOCK_$(echo "$name" | tr 'a-z-' 'A-Z_')_URL=$url" >>"$GITHUB_ENV"
+            [ -n "$first" ] || first="$root/$name"
+          done
+          {
+            echo "MOCK_ROOT=$root"
+            echo "CURL_CA_BUNDLE=$root/all-success/cert.pem"
+          } >>"$GITHUB_ENV"
+
+      # 1. all-success -> uploaded, exit 0
+      - name: all-success
+        id: ok
+        continue-on-error: true
+        uses: ./
+        with:
+          api-key: ${{ env.LANTERN_TEST_KEY }}
+          lantern-url: ${{ env.MOCK_ALL_SUCCESS_URL }}
+          upload-on: always
+          sarif: |
+            osv=test/fixtures/osv.sarif
+            gitleaks=test/fixtures/gitleaks.sarif
+          a11y: a11y=test/fixtures/a11y.json
+          sonarqube: sonarqube=test/fixtures/sonarqube.json
+      - name: assert all-success
+        env:
+          OUTCOME: ${{ steps.ok.outcome }}
+          STATUS: ${{ steps.ok.outputs.status }}
+          RESULTS: ${{ steps.ok.outputs.results }}
+        run: |
+          [ "$OUTCOME" = success ] && [ "$STATUS" = uploaded ]
+          [ "$(jq 'length' <<<"$RESULTS")" = 4 ]
+          [ "$(jq '[.[] | select(.outcome == "created")] | length' <<<"$RESULTS")" = 4 ]
+          hits="$MOCK_ROOT/all-success/hits.jsonl"
+          [ "$(jq -s 'length' "$hits")" = 4 ]
+          [ "$(jq -s '[.[] | select(.auth_ok and .content_type == "application/json")] | length' "$hits")" = 4 ]
+          # snippets stripped from what was received
+          for f in "$MOCK_ROOT"/all-success/bodies/*-osv.json "$MOCK_ROOT"/all-success/bodies/*-gitleaks.json; do
+            [ "$(jq '[.. | objects | select(has("contextRegion") or has("codeFlows"))] | length' "$f")" = 0 ]
+          done
+
+      # 2. a mix of success and failure -> partial, exit 0
+      - name: partial
+        id: partial
+        continue-on-error: true
+        uses: ./
+        with:
+          api-key: ${{ env.LANTERN_TEST_KEY }}
+          lantern-url: ${{ env.MOCK_PARTIAL_URL }}
+          upload-on: always
+          sarif: |
+            osv=test/fixtures/osv.sarif
+            bad=test/fixtures/gitleaks.sarif
+      - name: assert partial
+        env:
+          OUTCOME: ${{ steps.partial.outcome }}
+          STATUS: ${{ steps.partial.outputs.status }}
+        run: '[ "$OUTCOME" = success ] && [ "$STATUS" = partial ]'
+
+      # 3. the same mix with fail-on-error -> exit 1
+      - name: partial with fail-on-error
+        id: strict
+        continue-on-error: true
+        uses: ./
+        with:
+          api-key: ${{ env.LANTERN_TEST_KEY }}
+          lantern-url: ${{ env.MOCK_PARTIAL_URL }}
+          upload-on: always
+          fail-on-error: true
+          scanned-at: "2099-01-01T00:00:00Z"
+          sarif: |
+            osv=test/fixtures/osv.sarif
+            bad=test/fixtures/gitleaks.sarif
+      - name: assert fail-on-error
+        env:
+          OUTCOME: ${{ steps.strict.outcome }}
+          STATUS: ${{ steps.strict.outputs.status }}
+        run: '[ "$OUTCOME" = failure ] && [ "$STATUS" = partial ]'
+
+      # 4. 409 -> stale, exit 0
+      - name: stale
+        id: stale
+        continue-on-error: true
+        uses: ./
+        with:
+          api-key: ${{ env.LANTERN_TEST_KEY }}
+          lantern-url: ${{ env.MOCK_STALE_URL }}
+          upload-on: always
+          fail-on-error: true
+          sarif: osv=test/fixtures/osv.sarif
+      - name: assert stale
+        env:
+          OUTCOME: ${{ steps.stale.outcome }}
+          RESULTS: ${{ steps.stale.outputs.results }}
+        run: '[ "$OUTCOME" = success ] && [ "$(jq -r ".[0].outcome" <<<"$RESULTS")" = stale ]'
+
+      # 5. 500 then 201 -> created after a retry, same scannedAt on both attempts
+      - name: retry
+        id: retry
+        continue-on-error: true
+        uses: ./
+        env:
+          LANTERN_RETRY_DELAYS: "1 1 1"
+        with:
+          api-key: ${{ env.LANTERN_TEST_KEY }}
+          lantern-url: ${{ env.MOCK_RETRY_URL }}
+          upload-on: always
+          sarif: flaky=test/fixtures/osv.sarif
+      - name: assert retry
+        env:
+          OUTCOME: ${{ steps.retry.outcome }}
+          RESULTS: ${{ steps.retry.outputs.results }}
+        run: |
+          [ "$OUTCOME" = success ]
+          [ "$(jq -r '.[0].outcome' <<<"$RESULTS")" = created ]
+          hits="$MOCK_ROOT/retry/hits.jsonl"
+          [ "$(jq -s '[.[] | select(.source == "flaky")] | length' "$hits")" = 2 ]
+          [ "$(jq -s '[.[].scannedAt] | unique | length' "$hits")" = 1 ]
+          [ "$(jq -s '[.[] | select(.violation)] | length' "$hits")" = 0 ]
+
+      # 6. empty api-key -> skipped, exit 0, no requests
+      - name: empty api-key
+        id: nokey
+        continue-on-error: true
+        uses: ./
+        with:
+          api-key: ""
+          lantern-url: ${{ env.MOCK_ALL_SUCCESS_URL }}
+          upload-on: always
+          fail-on-error: true
+          sarif: osv=test/fixtures/osv.sarif
+      - name: assert empty api-key
+        env:
+          OUTCOME: ${{ steps.nokey.outcome }}
+          STATUS: ${{ steps.nokey.outputs.status }}
+        run: '[ "$OUTCOME" = success ] && [ "$STATUS" = skipped ]'
+
+      # 7. upload-on: never -> dry-run, no HTTP calls
+      - name: dry run
+        id: never
+        continue-on-error: true
+        uses: ./
+        with:
+          api-key: ${{ env.LANTERN_TEST_KEY }}
+          lantern-url: ${{ env.MOCK_STALE_URL }}
+          upload-on: never
+          sarif: osv=test/fixtures/osv.sarif
+      - name: assert dry run
+        env:
+          OUTCOME: ${{ steps.never.outcome }}
+          STATUS: ${{ steps.never.outputs.status }}
+        run: |
+          [ "$OUTCOME" = success ] && [ "$STATUS" = dry-run ]
+          # the stale mock saw exactly the one request from scenario 4 and none from this step
+          [ "$(jq -s 'length' "$MOCK_ROOT/stale/hits.jsonl")" = 1 ]
+
+      # 8. default-branch gate: skipped on pull_request (and any non-default ref), uploads on the default branch
+      - name: default-branch gate
+        id: gate
+        continue-on-error: true
+        uses: ./
+        with:
+          api-key: ${{ env.LANTERN_TEST_KEY }}
+          lantern-url: ${{ env.MOCK_ALL_SUCCESS_URL }}
+          sarif: gate=test/fixtures/osv.sarif
+      - name: assert gate
+        env:
+          OUTCOME: ${{ steps.gate.outcome }}
+          STATUS: ${{ steps.gate.outputs.status }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          [ "$OUTCOME" = success ]
+          case "$EVENT" in pull_request*) expect=skipped ;; *) [ "$REF" = "refs/heads/$DEFAULT_BRANCH" ] && expect=uploaded || expect=skipped ;; esac
+          echo "event=$EVENT ref=$REF -> expecting $expect"
+          [ "$STATUS" = "$expect" ]
+          if [ "$expect" = skipped ]; then
+            [ "$(jq -s '[.[] | select(.source == "gate")] | length' "$MOCK_ROOT/all-success/hits.jsonl")" = 0 ]
+          fi
+
+      # 9. the key never reaches a log (the step log is captured here, so it can be searched)
+      - name: key never appears in the log
+        env:
+          INPUT_API_KEY: ${{ env.LANTERN_TEST_KEY }}
+          INPUT_LANTERN_URL: ${{ env.MOCK_PARTIAL_URL }}
+          INPUT_UPLOAD_ON: always
+          INPUT_SARIF: |
+            osv=test/fixtures/osv.sarif
+            bad=test/fixtures/gitleaks.sarif
+          INPUT_FAIL_ON_ERROR: "true"
+          INPUT_SCANNED_AT: "2099-06-01T00:00:00Z"
+          LANTERN_RETRY_DELAYS: "1 1 1"
+        run: |
+          bash scripts/main.sh >"$RUNNER_TEMP/action.log" 2>&1 || true
+          grep -q 'Lantern: status=' "$RUNNER_TEMP/action.log"
+          if grep -v '^::add-mask::' "$RUNNER_TEMP/action.log" | grep -F "$LANTERN_TEST_KEY"; then
+            echo "API key found in the log"; exit 1
+          fi
