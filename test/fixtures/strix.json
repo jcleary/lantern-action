@@ -1,0 +1,20 @@
+{
+  "run": { "id": "demo_0001", "status": "completed" },
+  "findings": [
+    {
+      "externalId": "STRIX-0001",
+      "title": "Any signed-in user can publish another user's report",
+      "severity": "high",
+      "cwe": "CWE-639",
+      "cvss": 8.1,
+      "method": "POST",
+      "endpoint": "/api/jobs/{id}/publish",
+      "description": "The route checks sign-in but not ownership.",
+      "remediation": "Check the job owner before publishing.",
+      "confidence": "High",
+      "retest": "new",
+      "markdown": "# Any signed-in user can publish another user's report\n\n## Description\n\nThe route checks sign-in but not ownership."
+    }
+  ],
+  "resolved": []
+}

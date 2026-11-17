@@ -21,7 +21,7 @@ jobs:
         with:
           persist-credentials: false
       - name: shellcheck
-        run: shellcheck scripts/main.sh scripts/lib/*.sh test/mock-server/start.sh
+        run: shellcheck scripts/main.sh scripts/lib/*.sh strix/strix-run.sh test/mock-server/start.sh
       - name: actionlint
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12

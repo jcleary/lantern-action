@@ -1,6 +1,6 @@
 name: Lantern upload
 description: >-
-  Push the scanner reports your CI already produces (SARIF, axe-core, SonarQube) to Lantern.
+  Push the scanner reports your CI already produces (SARIF, axe-core, SonarQube, Strix) to Lantern.
   Never fails your build unless you ask it to.
 author: John Cleary
 branding:
@@ -29,6 +29,12 @@ inputs:
     default: ''
   sonarqube:
     description: Same "source-key=path" format, uploaded as format=sonarqube (issue-search response).
+    required: false
+    default: ''
+  strix:
+    description: >-
+      Same "source-key=path" format, uploaded as format=strix: the lantern-result.json that
+      strix/strix-run.sh assembles from a Strix run (findings, markdown write-ups, retest results).
     required: false
     default: ''
   upload-on:
@@ -80,6 +86,7 @@ runs:
         INPUT_SARIF: ${{ inputs.sarif }}
         INPUT_A11Y: ${{ inputs.a11y }}
         INPUT_SONARQUBE: ${{ inputs.sonarqube }}
+        INPUT_STRIX: ${{ inputs.strix }}
         INPUT_UPLOAD_ON: ${{ inputs.upload-on }}
         INPUT_SCANNED_AT: ${{ inputs.scanned-at }}
         INPUT_MAX_PAYLOAD_MB: ${{ inputs.max-payload-mb }}

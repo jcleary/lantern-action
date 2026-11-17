@@ -62,7 +62,7 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@<full-sha> # vX
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false, fetch-depth: 0 }   # gitleaks scans history
       - name: Dependencies (OSV-Scanner)
         run: osv-scanner scan source -r --format sarif --output osv.sarif . || true
@@ -71,7 +71,7 @@ jobs:
       - name: Send to Lantern
         if: always()
         continue-on-error: true
-        uses: jcleary/lantern-action@<full-sha> # v1.0.0
+        uses: jcleary/lantern-action@8f32c5a8c017aeec2e7f166e47ad177cd3cda362 # v1.0.0
         with:
           api-key: ${{ secrets.LANTERN_API_KEY }}
           sarif: |
@@ -81,7 +81,7 @@ jobs:
 
 Notes:
 
-- **Pin by full commit SHA** (`uses: jcleary/lantern-action@<full-sha> # v1.0.0`), as above. A tag can be
+- **Pin by full commit SHA** (`uses: jcleary/lantern-action@8f32c5a8c017aeec2e7f166e47ad177cd3cda362 # v1.0.0`), as above. A tag can be
   moved; a SHA cannot. Dependabot and Renovate understand the `# v1.0.0` comment and will open update PRs.
   Find the SHA on the [releases page](https://github.com/jcleary/lantern-action/releases). (`@v1` works but trusts a movable tag.)
 - Install the scanners however you like (OSV-Scanner and Gitleaks both ship binaries and Docker images). Use the
@@ -121,6 +121,7 @@ Notes:
 | `sarif` | `""` | Multi-line list, one `source-key=path/to/file.sarif` per line. |
 | `a11y` | `""` | Same format, uploaded as `format=a11y` (axe-core). |
 | `sonarqube` | `""` | Same format, uploaded as `format=sonarqube`. |
+| `strix` | `""` | Same format, uploaded as `format=strix`: the `lantern-result.json` from `strix/strix-run.sh` (see below). |
 | `upload-on` | `default-branch` | `default-branch`: upload only on non-PR runs of the default branch. `always`: any run. `never`: dry run, no HTTP calls. |
 | `scanned-at` | `""` | UTC time the scan finished, `2026-07-07T16:24:55Z` (must end in `Z`). Empty means the current time, computed once when the step starts. |
 | `max-payload-mb` | `10` | A file larger than this is skipped with a warning. Match Lantern's `max_ingest_bytes` (default 10 MB). |
@@ -128,7 +129,36 @@ Notes:
 | `fail-on-error` | `false` | If `true`, exit non-zero when any upload fails. Otherwise the step always exits 0. |
 
 Source keys are lower-cased and must match `^[a-z0-9][a-z0-9_-]{0,63}$`. A key may be used only once across
-`sarif`, `a11y` and `sonarqube`; a duplicate entry is skipped with a warning.
+`sarif`, `a11y`, `sonarqube` and `strix`; a duplicate entry is skipped with a warning.
+
+## Strix (AI pentest)
+
+Strix is non-deterministic, so Lantern never closes a Strix issue just because a run didn't mention it: only
+findings you retested and proved fixed are closed. `strix/strix-run.sh` does the bookkeeping, using the same
+instructions for every app.
+
+1. In the app repo, keep target, credentials and scope in `strix.local.md` (appended to the shared
+   `strix/instructions.md`; never put real secrets in write-ups).
+2. Run it (needs `strix`, `jq`, `curl`, and `LANTERN_API_KEY`; `LANTERN_SOURCE` defaults to `strix`):
+
+   ```bash
+   strix/strix-run.sh run -- --target ./my-app --target http://localhost:3000
+   ```
+
+   It fetches Lantern's previous findings for the source, runs Strix with them in `/workspace`, then writes
+   `lantern-strix/lantern-result.json`: stable `STRIX-nnnn` ids (a reworded known bug keeps its id), each
+   finding's markdown write-up, retest results as `resolved`, secrets redacted (`--redact FILE` adds your own
+   patterns). A run that did not finish is refused.
+3. Upload it, here or locally with the same curl as `docs/ingest.md`:
+
+   ```yaml
+   with:
+     strix: |
+       strix=lantern-strix/lantern-result.json
+   ```
+
+If Strix leaves no `LANTERN-RESULT` note, new findings simply get fresh ids and nothing is closed; the script
+warns. The write-up is shown inline in the issue drawer in Lantern.
 
 ## Outputs
 
@@ -141,7 +171,7 @@ Example use:
 
 ```yaml
       - id: lantern
-        uses: jcleary/lantern-action@<full-sha> # v1.0.0
+        uses: jcleary/lantern-action@8f32c5a8c017aeec2e7f166e47ad177cd3cda362 # v1.0.0
         with: { api-key: "${{ secrets.LANTERN_API_KEY }}", sarif: "osv=osv.sarif" }
       - run: echo '${{ steps.lantern.outputs.status }}'
 ```
