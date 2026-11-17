@@ -32,6 +32,19 @@ sarif_pair() { printf 'osv=osv.sarif\ngitleaks=gitleaks.sarif'; }
   [[ "$(hits | jq -r '.[0].scannedAt')" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
 }
 
+@test "strix input is uploaded as format=strix, like the other formats" {
+  start_mock all-success
+  export INPUT_STRIX="strix=strix.json"
+  run_action
+  [ "$status" -eq 0 ]
+  [ "$(out_status)" = uploaded ]
+  [ "$(hits | jq -r '.[0].format')" = strix ]
+  [ "$(hits | jq -r '.[0].source')" = strix ]
+  body="$MOCK_DIR/bodies/$(hits | jq -r '.[0].body_file')"
+  [ "$(jq -r '.findings[0].externalId' "$body")" = STRIX-0001 ]
+  [ "$(jq -r '.findings[0].markdown | startswith("# Any signed-in")' "$body")" = true ]
+}
+
 @test "snippets never leave CI when strip-snippets is on (the default)" {
   start_mock all-success
   export INPUT_SARIF="osv=osv.sarif"

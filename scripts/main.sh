@@ -95,6 +95,7 @@ main() {
     parse_source_list sarif "${INPUT_SARIF:-}"
     parse_source_list a11y "${INPUT_A11Y:-}"
     parse_source_list sonarqube "${INPUT_SONARQUBE:-}"
+    parse_source_list strix "${INPUT_STRIX:-}"
     local format source path
     while IFS=$'\t' read -r format source path; do
       [[ -z "$source" ]] && continue
@@ -139,6 +140,7 @@ main() {
   parse_source_list sarif "${INPUT_SARIF:-}"
   parse_source_list a11y "${INPUT_A11Y:-}"
   parse_source_list sonarqube "${INPUT_SONARQUBE:-}"
+  parse_source_list strix "${INPUT_STRIX:-}"
 
   if [[ ! -s "$LT_WORK/entries.tsv" ]]; then
     log_notice "Lantern: no valid reports to upload."

@@ -69,7 +69,7 @@ parse_source_list() {
       continue
     fi
     if [[ -f "$LT_WORK/seen" ]] && grep -Fxq -- "$key" "$LT_WORK/seen"; then
-      log_warning "Duplicate source key '${key}' (${format} input, line ${n}); skipping this entry. Source keys must be unique across sarif, a11y and sonarqube."
+      log_warning "Duplicate source key '${key}' (${format} input, line ${n}); skipping this entry. Source keys must be unique across sarif, a11y, sonarqube and strix."
       add_result "$key" "$format" "$path" 0 skipped "duplicate source key"
       continue
     fi

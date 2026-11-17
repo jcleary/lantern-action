@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `strix` input (`source-key=path`, uploaded as `format=strix`) for the payload assembled from a Strix run.
+- `strix/strix-run.sh` (`prepare`, `assemble`, `run`) and `strix/instructions.md`: the shared Strix
+  dedupe/retest instructions every app uses. The script fetches Lantern's previous findings, runs
+  Strix with the instructions plus the app's own `strix.local.md`, assigns stable `STRIX-nnnn` ids,
+  embeds each finding's markdown write-up, redacts secrets, and refuses runs that are not `completed`.
+  Needs Lantern with the `strix` format and `GET /api/v1/sources/<key>/issues`.
+
 ## [1.0.0] - 2026-11-05
 
 ### Added
