@@ -71,7 +71,7 @@ jobs:
       - name: Send to Lantern
         if: always()
         continue-on-error: true
-        uses: jcleary/lantern-action@8f32c5a8c017aeec2e7f166e47ad177cd3cda362 # v1.0.0
+        uses: jcleary/lantern-action@cb52e7b1c4bd896beca70a9d5d45da93eda7827a # v1.1.0
         with:
           api-key: ${{ secrets.LANTERN_API_KEY }}
           sarif: |
@@ -81,7 +81,7 @@ jobs:
 
 Notes:
 
-- **Pin by full commit SHA** (`uses: jcleary/lantern-action@8f32c5a8c017aeec2e7f166e47ad177cd3cda362 # v1.0.0`), as above. A tag can be
+- **Pin by full commit SHA** (`uses: jcleary/lantern-action@cb52e7b1c4bd896beca70a9d5d45da93eda7827a # v1.1.0`), as above. A tag can be
   moved; a SHA cannot. Dependabot and Renovate understand the `# v1.0.0` comment and will open update PRs.
   Find the SHA on the [releases page](https://github.com/jcleary/lantern-action/releases). (`@v1` works but trusts a movable tag.)
 - Install the scanners however you like (OSV-Scanner and Gitleaks both ship binaries and Docker images). Use the
@@ -171,7 +171,7 @@ Example use:
 
 ```yaml
       - id: lantern
-        uses: jcleary/lantern-action@8f32c5a8c017aeec2e7f166e47ad177cd3cda362 # v1.0.0
+        uses: jcleary/lantern-action@cb52e7b1c4bd896beca70a9d5d45da93eda7827a # v1.1.0
         with: { api-key: "${{ secrets.LANTERN_API_KEY }}", sarif: "osv=osv.sarif" }
       - run: echo '${{ steps.lantern.outputs.status }}'
 ```
