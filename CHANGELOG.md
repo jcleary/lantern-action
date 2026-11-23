@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-23
+
 ### Added
 
 - `strix` input (`source-key=path`, uploaded as `format=strix`) for the payload assembled from a Strix run.
@@ -31,5 +33,6 @@ All notable changes to this project are documented here. The format follows
 - Job summary table, step outputs, and run metadata shown (not sent) in the summary.
 - Tests: shellcheck, actionlint, bats unit tests, and integration runs against an HTTPS mock server.
 
-[Unreleased]: https://github.com/jcleary/lantern-action/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/jcleary/lantern-action/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/jcleary/lantern-action/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jcleary/lantern-action/releases/tag/v1.0.0
